@@ -16,9 +16,9 @@ const CHILD_SCALE = 0.7;
 const CHILD_COUNTDOWN_TIME = 600; // 10 seconds at 60fps
 
 const SHELVES = [
-  { name: "top shelf", x: 0, y: 170, width: 300, height: 100, items: ["tissues", "sauce"] },
+  { name: "top shelf", x: 0, y: 100, width: 300, height: 100, items: ["tissues", "sauce"] },
   { name: "middle shelf", x: 0, y: 440, width: 300, height: 100, items: ["waterbottle", "bottle"] },
-  { name: "bottom shelf", x: 30, y: 700, width: 160, height: 100, items: ["corn"] }
+  { name: "bottom shelf", x: 30, y: 780, width: 300, height: 100, items: ["corn"] }
 ];
 
 
@@ -31,6 +31,10 @@ const SPAWN_POINT = { x: 450, y: 0 };
 const CART_OFFSET_X = 50;
 const CART_OFFSET_Y = 50;
 const CART_SCALE = 0.9;
+
+const COLLISION_DISTANCE = 50; 
+const CARDBOARD_BOX = { x: 230, y: 250, width: 200, height: 200 };
+
 
 function preload() {
   dude = loadImage("imgs/dude.png");
@@ -143,6 +147,63 @@ function draw() {
   }
 }
 
+
+function checkNPCCollisions(currentNPC, nextX, nextY, currentIndex) {
+  for (let i = 0; i < npcs.length; i++) {
+    if (i === currentIndex) continue; // skip self
+    
+    let otherNPC = npcs[i];
+    let distance = dist(nextX, nextY, otherNPC.x, otherNPC.y);
+    
+    if (distance < COLLISION_DISTANCE) {
+      return true; // collision detected
+    }
+  }
+  
+  return false; // no collision
+}
+
+
+function checkChildrenCollisions(npc, nextX, nextY) {
+  for (let child of children) {
+    let distance = dist(nextX, nextY, child.x, child.y);
+    
+    if (distance < COLLISION_DISTANCE) {
+      return true; 
+    }
+  }
+  
+  return false; 
+}
+
+
+function findAlternativePath(npc) {
+  let directions = [
+    { x: 0, y: -1 },  // up
+    { x: 1, y: 0 },   // right
+    { x: 0, y: 1 },   // down
+    { x: -1, y: 0 }   // left
+  ];
+  
+  let randomDirection = random(directions);
+  
+  // set temp target 50 pixels away
+  let tempTargetX = npc.x + (randomDirection.x * 50);
+  let tempTargetY = npc.y + (randomDirection.y * 50);
+  
+  // make sure the target stays within  canvas
+  if (tempTargetX < 50) tempTargetX = 50;
+  if (tempTargetX > width - 50) tempTargetX = width - 50;
+  if (tempTargetY < 50) tempTargetY = 50;
+  if (tempTargetY > height - 50) tempTargetY = height - 50;
+  
+  // set as temp target
+  npc.tempTargetX = tempTargetX;
+  npc.tempTargetY = tempTargetY;
+  npc.isFollowingTempTarget = true;
+}
+
+
 function drawShoppingCarts() {
   for (let npc of npcs) {
     if (npc.hasCart) {
@@ -176,8 +237,6 @@ function drawBags() {
   }
 }
 
-
-
 function spawnNPC() {
   if (npcs.length >= MAX_NPCS) return;
   
@@ -188,17 +247,22 @@ function spawnNPC() {
   npc.collider = 'dynamic';
   npc.rotationLock = true;
   
-  npc.state = 'entering'; // States: entering, browsing, checkout, leaving
+  npc.state = 'entering';
   npc.targetX = null;
   npc.targetY = null;
   npc.pauseTimer = 0;
-  npc.browsingTime = floor(random(180, 480)); // 3-8 seconds at 60fps
-  npc.isCheckout = random() < 0.7; // 70% chance to go to checkout, 30% to just leave
+  npc.browsingTime = floor(random(180, 480));
+  npc.isCheckout = random() < 0.7;
   npc.hasCart = true; 
   npc.cartFull = false; 
   npc.hasBag = false;
   npc.browseCounter = 0; 
   npc.browseThreshold = floor(random(1, 60)); 
+  npc.bounciness = 2;
+  
+  npc.isFollowingTempTarget = false;
+  npc.tempTargetX = null;
+  npc.tempTargetY = null;
 
   npc.browsingSpots = [
     { x: 150, y: 300 },
@@ -233,21 +297,55 @@ function updateNPCs() {
         if (npc.browseCounter >= npc.browseThreshold) {
           npc.cartFull = true;
         }
-
       }
       
       continue;
     }
     
-    // state machine for NPC behavior
+    // check if following temporary path from collision avoidance
+    if (npc.isFollowingTempTarget) {
+      if (abs(npc.x - npc.tempTargetX) > 5) {
+        npc.velocity.x = npc.x < npc.tempTargetX ? NPC_SPEED : -NPC_SPEED;
+        npc.velocity.y = 0;
+      } else if (abs(npc.y - npc.tempTargetY) > 5) {
+        npc.velocity.y = npc.y < npc.tempTargetY ? NPC_SPEED : -NPC_SPEED;
+        npc.velocity.x = 0;
+      } else {
+        npc.isFollowingTempTarget = false;
+      }
+      
+      let nextX = npc.x + npc.velocity.x;
+      let nextY = npc.y + npc.velocity.y;
+
+      //check for another collision
+      if (checkNPCCollisions(npc, nextX, nextY, i) || 
+          checkChildrenCollisions(npc, nextX, nextY)) {
+        findAlternativePath(npc);
+        npc.pauseTimer = 15;
+      }
+      
+      npc.draw();
+      continue;
+    }
+    
+    let nextX = npc.x + npc.velocity.x;
+    let nextY = npc.y + npc.velocity.y;
+    
+    if (checkNPCCollisions(npc, nextX, nextY, i) || 
+        checkChildrenCollisions(npc, nextX, nextY)) {
+      findAlternativePath(npc);
+      npc.pauseTimer = 15;
+      npc.draw();
+      continue;
+    }
+    
+    //npc state machine
     switch (npc.state) {
       case 'entering':
-        // move down from top
         if (npc.targetY !== null && abs(npc.y - npc.targetY) > 5) {
           npc.velocity.y = NPC_SPEED;
           npc.velocity.x = 0;
         } else {
-          // after moving down, choose a browsing spot
           npc.state = 'browsing';
           let spot = random(npc.browsingSpots);
           npc.targetX = spot.x;
@@ -257,7 +355,6 @@ function updateNPCs() {
         break;
         
       case 'browsing':
-          // move to browsing spot in an L shape
         if (npc.targetX !== null && abs(npc.x - npc.targetX) > 5) {
           npc.velocity.x = npc.x < npc.targetX ? NPC_SPEED : -NPC_SPEED;
           npc.velocity.y = 0;
@@ -265,7 +362,6 @@ function updateNPCs() {
           npc.velocity.y = npc.y < npc.targetY ? NPC_SPEED : -NPC_SPEED;
           npc.velocity.x = 0;
         } else {
-          // pause and browse
           npc.velocity.x = 0;
           npc.velocity.y = 0;
           npc.pauseTimer = npc.browsingTime;
@@ -283,7 +379,6 @@ function updateNPCs() {
         break;
         
       case 'checkout':
-        // moving to checkout in L shape
         if (npc.targetX !== null && abs(npc.x - npc.targetX) > 5) {
           npc.velocity.x = npc.x < npc.targetX ? NPC_SPEED : -NPC_SPEED;
           npc.velocity.y = 0;
@@ -293,7 +388,7 @@ function updateNPCs() {
         } else {
           npc.velocity.x = 0;
           npc.velocity.y = 0;
-          npc.pauseTimer = 180; // 3 seconds checkout time
+          npc.pauseTimer = 180;
           
           npc.state = 'leaving';
           npc.hasCart = false;
@@ -348,11 +443,11 @@ function updateItems() {
     for (let i = 0; i < SHELVES.length; i++) {
       let shelf = SHELVES[i];
       
-      // Check if player is near this shelf
+      // check if player is near this shelf
       if (player.x >= shelf.x && player.x <= shelf.x + shelf.width &&
           player.y >= shelf.y && player.y <= shelf.y + shelf.height) {
         
-        // Check if this shelf accepts the held item
+        // check if this shelf accepts the held item
         if (shelf.items.includes(player.holdingItem.name)) {
           placeItemOnShelf(shelf);
           break;
@@ -374,6 +469,7 @@ function placeItemOnShelf(shelf) {
   // spawn a new item after a delay
   setTimeout(spawnNewItem, 2000);
 }
+
 
 function updateChildren() {
   if (random() < CHILD_SPAWN_RATE && children.length < MAX_CHILDREN) {
@@ -400,7 +496,6 @@ function spawnChild() {
   let child = new Sprite();
   
   let randomImageIndex = floor(random(0,4));
-  console.log(randomImageIndex);
   child.image = KIDS[randomImageIndex]; 
   child.image.scale = CHILD_SCALE;
   child.collider = 'static'; 
@@ -415,21 +510,48 @@ function spawnChild() {
     childX = random(50, width - 50);
     childY = random(100, height - 50);
     
-    // Check if position overlaps with shelves
+    // check if position overlaps with shelves
     validPosition = true;
     
-    if (childX < 300 && childY > 170 && childY < 270) {
+    if (childX < 300 && childY > 100 && childY < 200) { 
       validPosition = false;
     }
     if (childX < 300 && childY > 440 && childY < 620) {
       validPosition = false;
     }
-
     if (childX > 670 && childX < 820 && childY > 160 && childY < 350) {
       validPosition = false;
     }
+    if (childX > 30 && childX < 190 && childY > 780 && childY < 880) { 
+      validPosition = false;
+    }
+    
+    //dont spawn by the box
+    if (childX > CARDBOARD_BOX.x - COLLISION_DISTANCE && 
+        childX < CARDBOARD_BOX.x + CARDBOARD_BOX.width + COLLISION_DISTANCE &&
+        childY > CARDBOARD_BOX.y - COLLISION_DISTANCE && 
+        childY < CARDBOARD_BOX.y + CARDBOARD_BOX.height + COLLISION_DISTANCE) {
+      validPosition = false;
+    }
+    
+    //dont spawn by another child
+    for (let existingChild of children) {
+      if (dist(childX, childY, existingChild.x, existingChild.y) < COLLISION_DISTANCE) {
+        validPosition = false;
+        break;
+      }
+    }
+    
+    //dont spawn near npcs
+    for (let npc of npcs) {
+      if (dist(childX, childY, npc.x, npc.y) < COLLISION_DISTANCE) {
+        validPosition = false;
+        break;
+      }
+    }
 
-    if (childX > 30 && childX < 190 && childY > 700 && childY < 720) {
+    //dont spawn on player
+    if (dist(childX, childY, player.x, player.y) < COLLISION_DISTANCE) {
       validPosition = false;
     }
   }
@@ -442,6 +564,7 @@ function spawnChild() {
   
   children.push(child);
 }
+
 
 function mouseClicked() {
   print(mouseX, mouseY);
@@ -485,10 +608,10 @@ function drawFloor() {
     line(0, y, 900, y);
   }
 
-  image(shelves1, 0, 170, 300, 100);
+  image(shelves1, 0, 100, 300, 100); 
   image(shelves2, 0, 440, 300, 100);
   image(checkout, 600, 100, 400, 300);
   image(cardbox, 230, 250, 200, 200);
-  image(shelf3, 30, 700, 100, 100);
-  image(shelf4, 190, 710, 100, 100);
+  image(shelf3, 30, 780, 100, 100); 
+  image(shelf4, 190, 790, 100, 100);
 }
