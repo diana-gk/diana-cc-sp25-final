@@ -1,0 +1,48 @@
+ dude = loadImage("dude.png");
+  gal = loadImage("gal.png");
+  person1 = loadImage("person1.png");
+  person2 = loadImage("person2.png");
+  person3 = loadImage("person3.png");
+  person4 = loadImage("person4.png");
+  person5 = loadImage("person5.png");
+  person6 = loadImage("person6.png");
+  person7 = loadImage("person7.png");
+  person8 = loadImage("person8.png");
+  person9 = loadImage("person9.png");
+  child1 = loadImage("child1.png");
+  child2 = loadImage("child2.png");
+  child3 = loadImage("child3.png");
+  child4 = loadImage("child4.png");
+  shelves1 = loadImage("shelves1.png");
+  shelves2 = loadImage("shelves2.png");
+  shelf3 = loadImage("shelf3.png");
+  shelf4 = loadImage("shelf4.png");
+  shoppingCart = loadImage("shopping-cart.png");
+  shoppingCartFull = loadImage("shopping-cart-full.png");
+  checkout = loadImage("checkout.png");
+  selfcheckout = loadImage("self-check.png");
+  cardbox = loadImage("cardboard-box.png");
+  corn = loadImage("corn.png");
+  sauce = loadImage("sauce.png");
+  waterbottle = loadImage("waterbottle.png");
+  tissues = loadImage("tissues.png");
+  bottle = loadImage("bottle.png");
+  crying = loadImage("crying.png");
+  bag = loadImage("bag.png");
+  doors1 = loadImage("glassdoors.png");
+  doors2 = loadImage("doors-turned.png")
+  parkinglot = loadImage("parkinglot.jpg")
+  car = loadImage("car.png");
+  car2 = loadImage("car2.png");
+  angry = loadImage("angry.png");
+
+  soundFormats("mp3"); 
+  cryingSound = loadSound("crying.mp3");
+  bgMusic = loadSound("WiiMusic.mp3");
+  alarm = loadSound("alarm.mp3");
+
+
+  gameFont = loadFont("PressStart2P-Regular.ttf");
+
+
+  replace the two lines for the buttons for players in the beginning too 

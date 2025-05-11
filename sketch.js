@@ -121,13 +121,14 @@ const NPC_PATHS = [
 
 let camera;
 let hudText = "";
-const HUD_BOX_WIDTH = 400;
+const HUD_BOX_WIDTH = 1000;
 const HUD_BOX_HEIGHT = 60;
 const HUD_MARGIN = 20;
 const HUD_CORNER_RADIUS = 10;
 
 
-let playerMoney = 0;
+let playerMoney = 2990;
+const WINNING_AMOUNT = 3000; 
 const STOCKING_REWARD = 10; // $10 for each item stocked
 const SHOPLIFTER_CATCH_REWARD = 25; // $25 for catching a shoplifter
 const SHOPLIFTER_ESCAPE_PENALTY = 50; // $50 penalty if a shoplifter escapes
@@ -218,22 +219,22 @@ function setup() {
 
 
 function draw() {
-
-  if (gameState == "intro") {
-    intro();
- }  else if (gameState == "runGame") {
-    runGame(playerImage);
- }
-  
+    if (gameState == "intro") {
+      intro();
+    } else if (gameState == "runGame") {
+      runGame(playerImage);
+    } else if (gameState == "outro") {
+      outro();
+    }
 }
 
 function intro() {
   resetMatrix();
 
-  textFont('gameFont');
   textSize(40);
   fill(0,0,0);
   textAlign(CENTER, CENTER);
+  textFont(gameFont);
   text('grocery store simulator', windowWidth / 2, windowHeight /3);
   textSize(30);
   text('pick an employee', windowWidth/2, windowHeight/3 + 50);
@@ -383,6 +384,7 @@ function runGame(playerImage) {
   
   fill(0);
   textSize(24);
+  textFont('Arial');
   if (player.holding) {
     hudText = "Find the correct shelf for: " + player.holdingItem.name;
   } else if (activeItem) {
@@ -392,7 +394,7 @@ function runGame(playerImage) {
   }
 
   drawHUD();
-
+  textFont(gameFont);
   displayMoney();
   
   if (isAlarmActive) {
@@ -918,10 +920,12 @@ function placeItemOnShelf(shelf) {
   
   showMoneyNotification(STOCKING_REWARD, true);
   
-  // spawn a new item after a delay
-  setTimeout(spawnNewItem, 2000);
+  if (playerMoney >= WINNING_AMOUNT) {
+    gameState = "outro";
+  } else {
+    setTimeout(spawnNewItem, 2000);
+  }
 }
-
 
 function updateChildren() {
   if (random() < CHILD_SPAWN_RATE && children.length < MAX_CHILDREN) {
@@ -1127,7 +1131,7 @@ function drawStore() {
   //wall
   fill(125, 0, 0);
   rect(0, 1020, 900, 60);
-  rect(840, 1020, 60, 1780);
+  rect(840, 1020, 60, 780);
 
   image(doors2, 840, 1320, 60, 300);
   image(parkinglot, 0, 1080, 840, 720);
@@ -1186,7 +1190,8 @@ function drawHUD() {
   
   fill(255);
   noStroke();
-  textSize(24);
+  textSize(20);
+  textFont(gameFont);
   textAlign(CENTER, CENTER);
   
   let displayText = hudText;
@@ -1277,10 +1282,42 @@ function handleShoplifterCaught(shoplifter) {
   playerMoney += SHOPLIFTER_CATCH_REWARD;
   showMoneyNotification(SHOPLIFTER_CATCH_REWARD, true);
   stopAlarm();
+  
+  if (playerMoney >= WINNING_AMOUNT) {
+    gameState = "outro";
+  }
 }
 
 function handleShoplifterEscaped() {
   playerMoney -= SHOPLIFTER_ESCAPE_PENALTY;
   showMoneyNotification(SHOPLIFTER_ESCAPE_PENALTY, false);
   stopAlarm();
+}
+
+function outro() {
+  resetMatrix();
+  
+  background(0, 0, 0, 100);
+  
+  fill(0, 0, 0, 200);
+  rectMode(CORNER);
+  rect(0, 0, width, height);
+  
+  textFont(gameFont);
+  textSize(40);
+  fill(255, 215, 0); 
+  textAlign(CENTER, CENTER);
+  text("YOU'VE EARNED ENOUGH", width / 2, height / 3);
+  
+  textSize(60);
+  fill(255, 255, 255);
+  text("NOW GO HOME...", width / 2, height / 2);
+  
+  textSize(30);
+  fill(0, 255, 0);
+  text("FINAL EARNINGS: $" + playerMoney, width / 2, height * 2/3);
+  
+  textSize(20);
+  fill(150, 150, 150);
+  text("REFRESH PAGE TO PLAY AGAIN", width / 2, height * 3/4);
 }
