@@ -15,6 +15,11 @@ const CHILD_SCALE = 0.7;
 const CHILD_COUNTDOWN_TIME = 600; // 10 seconds at 60fps
 const ANGRY_DURATION = 180; // 3 seconds at 60fps
 
+const BOOSTED_SPEED = 8; 
+const SPEED_BOOST_DURATION = 180; // 3 seconds at 60fps
+let playerSpeedBoosted = false;
+let playerBoostTimer = 0;
+
 const SHELVES = [
   { name: "top shelf", x: 900, y: 50, width: 850, height: 200, items: ["tissues", "waterbottle"] },
   { name: "top shelf2", x: 60, y: 800, width: 850, height: 200, items: ["tissues", "waterbottle"] },
@@ -50,18 +55,15 @@ let button1;
 let button2;
 
 
-// Added exit point at door 2
 const EXIT_POINT = { x: 870, y: 1320 };
 
-// Define store boundaries to prevent children from spawning in parking lot
 const STORE_BOUNDS = {
   minX: 0,
   maxX: 1800,
   minY: 0,
-  maxY: 1020 // Y-coordinate where the parking lot begins
+  maxY: 1020 
 };
 
-// Define checkout locations
 const CHECKOUT_COUNTERS = [
   { x: 1140, y: 900 }, // Main checkout counter
   { x: 1670, y: 980 }, // Self-checkout 1
@@ -70,7 +72,7 @@ const CHECKOUT_COUNTERS = [
 ];
 
 
-const SLOWED_SPEED = 2; // Slower speed when bumping into NPC
+const SLOWED_SPEED = 2;
 let playerIsSlowed = false;
 let playerSlowdownTimer = 0;
 const SLOWDOWN_DURATION = 180; // 3 seconds at 60fps
@@ -125,6 +127,17 @@ const HUD_MARGIN = 20;
 const HUD_CORNER_RADIUS = 10;
 
 
+let playerMoney = 0;
+const STOCKING_REWARD = 10; // $10 for each item stocked
+const SHOPLIFTER_CATCH_REWARD = 25; // $25 for catching a shoplifter
+const SHOPLIFTER_ESCAPE_PENALTY = 50; // $50 penalty if a shoplifter escapes
+
+const SHOPLIFTING_CHANCE = 0.3; 
+let redFlashAlpha = 0; 
+let isAlarmActive = false;
+let activeShoplifter = null;
+
+
 function preload() {
   dude = loadImage("imgs/dude.png");
   gal = loadImage("imgs/gal.png");
@@ -165,6 +178,11 @@ function preload() {
   angry = loadImage("imgs/angry.png");
 
 
+  soundFormats("mp3"); 
+  cryingSound = loadSound("assets/crying.mp3");
+  bgMusic = loadSound("assets/WiiMusic.mp3");
+  alarm = loadSound("assets/alarm.mp3");
+
 
   gameFont = loadFont("assets/PressStart2P-Regular.ttf");
 
@@ -179,8 +197,6 @@ function preload() {
     { image: bottle, name: "bottle" }
   ];
 
-  // soundFormats("mp3"); //File format
-  // BackgroundMusic = loadSound("BackgroundMusic.mp3");
 
 }
 
@@ -195,6 +211,9 @@ function setup() {
     y: height/2,
     zoom: 1
   };
+
+  bgMusic.play();
+  bgMusic.loop();
 }
 
 
@@ -202,8 +221,7 @@ function draw() {
 
   if (gameState == "intro") {
     intro();
- }  
- else if (gameState == "runGame") {
+ }  else if (gameState == "runGame") {
     runGame(playerImage);
  }
   
@@ -250,14 +268,14 @@ if (!button2) {
 function drawOutline(sprite) {
   for (let x = -1; x <= 1; x++) {
     for (let y = -1; y <= 1; y++) {
-      if (x == 0 && y == 0) continue; // Skip the center
-      push(); // Save the current canvas state
-      translate(sprite.position.x + x, sprite.position.y + y);  // Translate for offset
+      if (x == 0 && y == 0) continue; 
+      push(); 
+      translate(sprite.position.x + x, sprite.position.y + y);  
       fill(outlineColor);
-      stroke(outlineColor); // Set the outline color
-      strokeWeight(2); // Adjust outline width
-      ellipse(0, 0, 100, 190); // Draw the rectangle
-      pop(); // Restore canvas state
+      stroke(outlineColor); 
+      strokeWeight(2); 
+      ellipse(0, 0, 100, 190); 
+      pop(); 
     }
   }
 }
@@ -306,6 +324,25 @@ function runGame(playerImage) {
   }
 
   drawOutline(player);
+
+  if (playerSpeedBoosted) {
+    push();
+    noFill();
+    stroke(0, 255, 0); 
+    strokeWeight(3);
+    ellipse(player.x, player.y, 120, 210);
+    pop();
+  }
+
+  if (playerIsSlowed) {
+    push();
+    noFill();
+    stroke(255, 0, 0); 
+    strokeWeight(3);
+    ellipse(player.x, player.y, 120, 210);
+    pop();
+  }
+
   player.draw();  
   keepPlayerOnScreen();
 
@@ -355,6 +392,17 @@ function runGame(playerImage) {
   }
 
   drawHUD();
+
+  displayMoney();
+  
+  if (isAlarmActive) {
+    redFlashAlpha = sin(frameCount*2) * 100 + 100; // Make it pulse between 0 and 200 alpha
+    push();
+    resetMatrix();
+    fill(255, 0, 0, redFlashAlpha);
+    rect(0, 0, width, height);
+    pop();
+  }
 }
 
 
@@ -387,7 +435,6 @@ function checkChildrenCollisions(npc, nextX, nextY) {
 }
 
 function findAlternativePath(npc) {
-  // Define 8 possible directions instead of just 4
   let directions = [
     { x: 0, y: -1 },    // up
     { x: 0.7, y: -0.7 }, // up-right
@@ -399,14 +446,12 @@ function findAlternativePath(npc) {
     { x: -0.7, y: -0.7 } // up-left
   ];
   
-  // Try to find a direction that doesn't lead to collision
   let validDirections = [];
   
   for (let dir of directions) {
     let testX = npc.x + (dir.x * 60);
     let testY = npc.y + (dir.y * 60);
     
-    // Check if position is valid
     let hasCollision = false;
     
     // Check NPC collisions
@@ -531,6 +576,10 @@ function spawnNPC() {
   npc.isFollowingTempTarget = false;
   npc.tempTargetX = null;
   npc.tempTargetY = null;
+
+  npc.willShoplift = random() < SHOPLIFTING_CHANCE;
+  npc.isShoplifting = false;
+  npc.isFleeing = false;
 
   // Assign a random path to the NPC
   let randomPathIndex = floor(random(0, NPC_PATHS.length));
@@ -671,78 +720,112 @@ function updateNPCs() {
         }
         break;
         
-      case 'checkout':
-        // Move to the assigned checkout counter
-        if (npc.targetX !== null && npc.targetY !== null) {
-          let distToCheckout = dist(npc.x, npc.y, npc.targetX, npc.targetY);
-          
-          if (distToCheckout > 10) {
-            // Move toward the checkout
-            let angleToCheckout = atan2(npc.targetY - npc.y, npc.targetX - npc.x);
-            npc.velocity.x = cos(angleToCheckout) * NPC_SPEED;
-            npc.velocity.y = sin(angleToCheckout) * NPC_SPEED;
-          } else {
-            npc.velocity.x = 0;
-            npc.velocity.y = 0;
-            npc.pauseTimer = 180; // Time at checkout
+        case 'checkout':
+          // Move to the assigned checkout counter
+          if (npc.targetX !== null && npc.targetY !== null) {
+            let distToCheckout = dist(npc.x, npc.y, npc.targetX, npc.targetY);
             
-            // Change to leaving state
-            npc.state = 'exiting';
-            npc.hasCart = false; // Remove cart
-            npc.hasBag = true;   // Add bag
-            npc.targetX = EXIT_POINT.x;
-            npc.targetY = EXIT_POINT.y;
+            if (distToCheckout > 10) {
+              // Move toward the checkout
+              let angleToCheckout = atan2(npc.targetY - npc.y, npc.targetX - npc.x);
+              npc.velocity.x = cos(angleToCheckout) * NPC_SPEED;
+              npc.velocity.y = sin(angleToCheckout) * NPC_SPEED;
+            } else {
+              npc.velocity.x = 0;
+              npc.velocity.y = 0;
+              
+              if (npc.willShoplift && !isAlarmActive && !npc.isShoplifting) {
+                npc.isShoplifting = true;
+                activeShoplifter = npc;
+                triggerShoplifterAlarm();
+                
+                // Skip checkout and head straight to exit
+                npc.pauseTimer = 0; 
+                npc.state = 'exiting';
+                npc.isFleeing = true;
+                npc.hasCart = false;
+                npc.hasBag = true;
+                npc.targetX = EXIT_POINT.x;
+                npc.targetY = EXIT_POINT.y;
+              } else {
+                // Normal checkout process
+                npc.pauseTimer = 180; // Time at checkout
+                
+                npc.state = 'exiting';
+                npc.hasCart = false; 
+                npc.hasBag = true;   
+                npc.targetX = EXIT_POINT.x;
+                npc.targetY = EXIT_POINT.y;
+              }
+            }
           }
+          break;
+          
+        case 'exiting':
+          // First move to the exit doors
+          let distToExit = dist(npc.x, npc.y, EXIT_POINT.x, EXIT_POINT.y);
+          
+          if (distToExit > 10) {
+            // Move toward the exit
+            let angleToExit = atan2(EXIT_POINT.y - npc.y, EXIT_POINT.x - npc.x);
+            let fleeingSpeed = npc.isFleeing ? NPC_SPEED * 1.5 : NPC_SPEED;
+            npc.velocity.x = cos(angleToExit) * fleeingSpeed;
+            npc.velocity.y = sin(angleToExit) * fleeingSpeed;
+          } else {
+            // After reaching exit doors, head left off screen
+            npc.targetX = -100;
+            npc.targetY = EXIT_POINT.y;
+            npc.state = 'leaving';
+          }
+          break;
+          
+        case 'leaving':
+          // Move left until off screen
+          let fleeingLeaveSpeed = npc.isFleeing ? NPC_SPEED * 1.5 : NPC_SPEED;
+          npc.velocity.x = -fleeingLeaveSpeed;
+          npc.velocity.y = 0;
+          
+          // Remove when off screen
+          if (npc.x < -50) {
+            // If this was a shoplifter that escaped
+            if (npc.isShoplifting) {
+              handleShoplifterEscaped();
+            }
+            
+            npc.remove();
+            npcs.splice(i, 1);
+          }
+          break;
         }
-        break;
-        
-      case 'exiting':
-        // First move to the exit doors
-        let distToExit = dist(npc.x, npc.y, EXIT_POINT.x, EXIT_POINT.y);
-        
-        if (distToExit > 10) {
-          // Move toward the exit
-          let angleToExit = atan2(EXIT_POINT.y - npc.y, EXIT_POINT.x - npc.x);
-          npc.velocity.x = cos(angleToExit) * NPC_SPEED;
-          npc.velocity.y = sin(angleToExit) * NPC_SPEED;
-        } else {
-          // After reaching exit doors, head left off screen
-          npc.targetX = -100;
-          npc.targetY = EXIT_POINT.y;
-          npc.state = 'leaving';
-        }
-        break;
-        
-      case 'leaving':
-        // Move left until off screen
-        npc.velocity.x = -NPC_SPEED;
-        npc.velocity.y = 0;
-        
-        // Remove when off screen
-        if (npc.x < -50) {
-          npc.remove();
-          npcs.splice(i, 1);
-        }
-        break;
-    }
 
-    // Check for player collision
-    if (player.overlaps(npc) && !npc.isAngry) {
-      // Make NPC angry
+        //if a npc is shoplifting, catching them will grant a speed boost
+    if (player.overlaps(npc) && npc.isShoplifting) {
       npc.isAngry = true;
       npc.angryTimer = ANGRY_DURATION;
       
-      // Slow down player
+      playerSpeedBoosted = true;
+      playerBoostTimer = SPEED_BOOST_DURATION;
+      
+      //Small bounce effect
+      let angle = atan2(player.y - npc.y, player.x - npc.x);
+      player.velocity.x = cos(angle) * 3;
+      player.velocity.y = sin(angle) * 3;
+    }    
+
+//if a npc is not shoplifitng, bumping them will slow you down
+    if (player.overlaps(npc) && !npc.isAngry) {
+      npc.isAngry = true;
+      npc.angryTimer = ANGRY_DURATION;
+      
       playerIsSlowed = true;
       playerSlowdownTimer = SLOWDOWN_DURATION;
       
-      // Optional: Add a small bounce effect
+      // Small bounce effect
       let angle = atan2(player.y - npc.y, player.x - npc.x);
       player.velocity.x = cos(angle) * 3;
       player.velocity.y = sin(angle) * 3;
     }
     
-    // Update angry timer
     if (npc.isAngry) {
       npc.angryTimer--;
       if (npc.angryTimer <= 0) {
@@ -752,11 +835,31 @@ function updateNPCs() {
     
     npc.draw();
 
-    // Draw angry emoji if NPC is angry
     if (npc.isAngry) {
       push(); 
       imageMode(CENTER);
       image(angry, npc.x, npc.y - 60, 75, 75); 
+      pop();
+    }
+
+    if (npc.isShoplifting && player.overlaps(npc)) {
+      handleShoplifterCaught(npc);
+      npc.isShoplifting = false;
+      npc.isFleeing = false;
+      
+      npc.isAngry = true;
+      npc.angryTimer = ANGRY_DURATION * 2; 
+      
+      npc.remove();
+      npcs.splice(i, 1);
+    }
+    
+    // If NPC is shoplifting, draw a special indicator
+    if (npc.isShoplifting) {
+      push(); 
+      fill(255, 0, 0);
+      noStroke();
+      ellipse(npc.x, npc.y - 100, 15, 15); // Red dot above shoplifter
       pop();
     }
   }
@@ -811,6 +914,10 @@ function placeItemOnShelf(shelf) {
   activeItem.remove();
   activeItem = null;
   
+  playerMoney += STOCKING_REWARD;
+  
+  showMoneyNotification(STOCKING_REWARD, true);
+  
   // spawn a new item after a delay
   setTimeout(spawnNewItem, 2000);
 }
@@ -828,11 +935,26 @@ function updateChildren() {
     
     if (child.countdown <= 0 && !child.isCrying) {
       child.isCrying = true;
+      cryingSound.loop();
     }
     
     if (player.overlaps(child)) {
+      playerSpeedBoosted = true;
+      playerBoostTimer = SPEED_BOOST_DURATION;
+      
+      if (child.isCrying) {
+        cryingSound.stop();
+      }
+      
       child.remove();
       children.splice(i, 1);
+    }
+  }
+  
+  if (playerSpeedBoosted) {
+    playerBoostTimer--;
+    if (playerBoostTimer <= 0) {
+      playerSpeedBoosted = false;
     }
   }
 }
@@ -917,7 +1039,13 @@ function mouseClicked() {
 }
 
 function keyPressed() {
-  let currentSpeed = playerIsSlowed ? SLOWED_SPEED : SPEED;
+  let currentSpeed = SPEED;
+  
+  if (playerSpeedBoosted) {
+    currentSpeed = BOOSTED_SPEED;
+  } else if (playerIsSlowed) {
+    currentSpeed = SLOWED_SPEED;
+  }
   
   if (key === 'A' || key === 'a') {
     player.velocity.x = -currentSpeed;
@@ -930,6 +1058,7 @@ function keyPressed() {
     player.velocity.y = currentSpeed;
   }
 }
+
     
 function keyReleased() {
   if (key === 'A' || key === 'a') {
@@ -1021,10 +1150,8 @@ function drawStore() {
 
 
 function keepPlayerOnScreen() {
-  // Set boundaries with a small margin
   const margin = 20;
   
-  // Check and correct position if player is going off-screen
   if (player.x < margin) {
     player.x = margin;
     player.velocity.x = 0;
@@ -1043,28 +1170,117 @@ function keepPlayerOnScreen() {
 }
 
 function drawHUD() {
-  push(); // Save the current drawing state
+  push(); 
   
   // Reset the transformation to draw HUD in screen coordinates
   resetMatrix();
   
-  // Calculate the position of the HUD box relative to the screen
   let hudX = (windowWidth/3) - (HUD_BOX_WIDTH/4);
   let hudY = HUD_MARGIN;
   
-  // Draw the box background with rounded corners
-  fill(0, 0, 0, 200); // Semi-transparent black
+  fill(0, 0, 0, 200); 
   stroke(255);
   strokeWeight(2);
   rectMode(CORNER);
   rect(hudX, hudY, HUD_BOX_WIDTH, HUD_BOX_HEIGHT, HUD_CORNER_RADIUS);
   
-  // Draw the text
   fill(255);
   noStroke();
   textSize(24);
   textAlign(CENTER, CENTER);
-  text(hudText, hudX + HUD_BOX_WIDTH/2, hudY + HUD_BOX_HEIGHT/2);
   
-  pop(); // Restore the original drawing state
+  let displayText = hudText;
+  
+  if (playerSpeedBoosted) {
+    displayText += " [SPEED BOOST!]";
+  } else if (playerIsSlowed) {
+    displayText += " [SLOWED!]";
+  }
+  
+  text(displayText, hudX + HUD_BOX_WIDTH/2, hudY + HUD_BOX_HEIGHT/2);
+  
+  pop();
+}
+
+
+function displayMoney() {
+  push();
+  resetMatrix();
+  
+  let moneyX = (windowWidth/3) - (HUD_BOX_WIDTH/4);
+  let moneyY = HUD_MARGIN + HUD_BOX_HEIGHT + 10;
+  
+  //money display
+  fill(0, 0, 0, 200);
+  stroke(255, 215, 0); 
+  strokeWeight(2);
+  rectMode(CORNER);
+  rect(moneyX, moneyY, HUD_BOX_WIDTH, HUD_BOX_HEIGHT, HUD_CORNER_RADIUS);
+  
+  fill(255, 215, 0); 
+  noStroke();
+  textSize(24);
+  textAlign(CENTER, CENTER);
+  text("$" + playerMoney, moneyX + HUD_BOX_WIDTH/2, moneyY + HUD_BOX_HEIGHT/2);
+  
+  pop();
+}
+
+
+function showMoneyNotification(amount, isGain) {
+  let notification = {
+    amount: amount,
+    isGain: isGain,
+    x: player.x,
+    y: player.y - 70,
+    alpha: 255,
+    lifetime: 60 // 1 second at 60fps
+  };
+  
+  let notificationInterval = setInterval(() => {
+    push();
+    textAlign(CENTER);
+    translate(-camera.x + (width/5), -camera.y + (height/5));
+    
+    if (notification.isGain) {
+      fill(0, 255, 0, notification.alpha);
+    } else {
+      fill(255, 0, 0, notification.alpha);
+    }
+    
+    textSize(24);
+    text((notification.isGain ? "+" : "-") + "$" + notification.amount, notification.x, notification.y);
+    
+    pop();
+    
+    notification.y -= 1;
+    notification.alpha -= 5;
+    
+    if (notification.alpha <= 0) {
+      clearInterval(notificationInterval);
+    }
+  }, 16); // Roughly 60fps
+}
+
+function triggerShoplifterAlarm() {
+  isAlarmActive = true;
+  alarm.loop();
+}
+
+function stopAlarm() {
+  isAlarmActive = false;
+  alarm.stop();
+  activeShoplifter = null;
+}
+
+function handleShoplifterCaught(shoplifter) {
+  playerMoney += SHOPLIFTER_CATCH_REWARD;
+  showMoneyNotification(SHOPLIFTER_CATCH_REWARD, true);
+  stopAlarm();
+}
+
+function handleShoplifterEscaped() {
+  playerMoney -= SHOPLIFTER_ESCAPE_PENALTY;
+  showMoneyNotification(SHOPLIFTER_ESCAPE_PENALTY, false);
+  stopAlarm();
 }
