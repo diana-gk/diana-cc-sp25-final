@@ -127,7 +127,7 @@ const HUD_MARGIN = 20;
 const HUD_CORNER_RADIUS = 10;
 
 
-let playerMoney = 2990;
+let playerMoney = 0;
 const WINNING_AMOUNT = 3000; 
 const STOCKING_REWARD = 10; // $10 for each item stocked
 const SHOPLIFTER_CATCH_REWARD = 25; // $25 for catching a shoplifter
