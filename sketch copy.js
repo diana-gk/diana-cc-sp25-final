@@ -2,6 +2,11 @@ let gameState;
 let player;
 let item;
 const SPEED = 5;
+const SLOWED_SPEED = 2; // Slower speed when bumping into NPC
+let playerIsSlowed = false;
+let playerSlowdownTimer = 0;
+const SLOWDOWN_DURATION = 180; // 3 seconds at 60fps
+
 
 let NPCS = [];
 let KIDS = [];
@@ -49,19 +54,15 @@ let outlineColor;
 let button1;
 let button2;
 
-
-// Added exit point at door 2
 const EXIT_POINT = { x: 870, y: 1320 };
 
-// Define store boundaries to prevent children from spawning in parking lot
 const STORE_BOUNDS = {
   minX: 0,
   maxX: 1800,
   minY: 0,
-  maxY: 1020 // Y-coordinate where the parking lot begins
+  maxY: 1020 
 };
 
-// Define checkout locations
 const CHECKOUT_COUNTERS = [
   { x: 1140, y: 900 }, // Main checkout counter
   { x: 1670, y: 980 }, // Self-checkout 1
@@ -69,11 +70,6 @@ const CHECKOUT_COUNTERS = [
   { x: 1080, y: 1440 }  // Self-checkout 3
 ];
 
-
-const SLOWED_SPEED = 2; // Slower speed when bumping into NPC
-let playerIsSlowed = false;
-let playerSlowdownTimer = 0;
-const SLOWDOWN_DURATION = 180; // 3 seconds at 60fps
 
 
 const NPC_PATHS = [
@@ -180,7 +176,7 @@ function preload() {
   ];
 
   // soundFormats("mp3"); //File format
-  // BackgroundMusic = loadSound("BackgroundMusic.mp3");
+  // BackgroundMusic = loadSound("name.mp3");
 
 }
 
@@ -250,14 +246,14 @@ if (!button2) {
 function drawOutline(sprite) {
   for (let x = -1; x <= 1; x++) {
     for (let y = -1; y <= 1; y++) {
-      if (x == 0 && y == 0) continue; // Skip the center
-      push(); // Save the current canvas state
-      translate(sprite.position.x + x, sprite.position.y + y);  // Translate for offset
+      if (x == 0 && y == 0) continue; 
+      push(); 
+      translate(sprite.position.x + x, sprite.position.y + y);  
       fill(outlineColor);
-      stroke(outlineColor); // Set the outline color
-      strokeWeight(2); // Adjust outline width
-      ellipse(0, 0, 100, 190); // Draw the rectangle
-      pop(); // Restore canvas state
+      stroke(outlineColor); 
+      strokeWeight(2); 
+      ellipse(0, 0, 100, 190); 
+      pop(); 
     }
   }
 }
@@ -387,7 +383,6 @@ function checkChildrenCollisions(npc, nextX, nextY) {
 }
 
 function findAlternativePath(npc) {
-  // Define 8 possible directions instead of just 4
   let directions = [
     { x: 0, y: -1 },    // up
     { x: 0.7, y: -0.7 }, // up-right
@@ -399,14 +394,12 @@ function findAlternativePath(npc) {
     { x: -0.7, y: -0.7 } // up-left
   ];
   
-  // Try to find a direction that doesn't lead to collision
   let validDirections = [];
   
   for (let dir of directions) {
     let testX = npc.x + (dir.x * 60);
     let testY = npc.y + (dir.y * 60);
     
-    // Check if position is valid
     let hasCollision = false;
     
     // Check NPC collisions
@@ -522,7 +515,7 @@ function spawnNPC() {
   npc.cartFull = false; 
   npc.hasBag = false;
   npc.browseCounter = 0; 
-  npc.browseThreshold = floor(random(60, 180)); // Longer browsing time
+  npc.browseThreshold = floor(random(60, 180)); 
   npc.bounciness = 2;
   npc.pathIndex = 0; // For tracking path progress
   npc.isAngry = false;
@@ -532,7 +525,6 @@ function spawnNPC() {
   npc.tempTargetX = null;
   npc.tempTargetY = null;
 
-  // Assign a random path to the NPC
   let randomPathIndex = floor(random(0, NPC_PATHS.length));
   npc.path = NPC_PATHS[randomPathIndex];
   
@@ -554,7 +546,7 @@ function spawnNPC() {
   if (npc.useMainCheckout) {
     npc.checkoutCounter = CHECKOUT_COUNTERS[0]; // Main checkout
   } else {
-    // Select a random self-checkout (index 1-3)
+    // Select a random self-checkout
     npc.checkoutCounter = CHECKOUT_COUNTERS[floor(random(1, CHECKOUT_COUNTERS.length))];
   }
   
@@ -688,8 +680,8 @@ function updateNPCs() {
             
             // Change to leaving state
             npc.state = 'exiting';
-            npc.hasCart = false; // Remove cart
-            npc.hasBag = true;   // Add bag
+            npc.hasCart = false; 
+            npc.hasBag = true;   
             npc.targetX = EXIT_POINT.x;
             npc.targetY = EXIT_POINT.y;
           }
@@ -714,11 +706,9 @@ function updateNPCs() {
         break;
         
       case 'leaving':
-        // Move left until off screen
         npc.velocity.x = -NPC_SPEED;
         npc.velocity.y = 0;
         
-        // Remove when off screen
         if (npc.x < -50) {
           npc.remove();
           npcs.splice(i, 1);
@@ -726,23 +716,19 @@ function updateNPCs() {
         break;
     }
 
-    // Check for player collision
     if (player.overlaps(npc) && !npc.isAngry) {
-      // Make NPC angry
       npc.isAngry = true;
       npc.angryTimer = ANGRY_DURATION;
       
-      // Slow down player
       playerIsSlowed = true;
       playerSlowdownTimer = SLOWDOWN_DURATION;
       
-      // Optional: Add a small bounce effect
+      //  Small bounce effect
       let angle = atan2(player.y - npc.y, player.x - npc.x);
       player.velocity.x = cos(angle) * 3;
       player.velocity.y = sin(angle) * 3;
     }
     
-    // Update angry timer
     if (npc.isAngry) {
       npc.angryTimer--;
       if (npc.angryTimer <= 0) {
@@ -752,7 +738,6 @@ function updateNPCs() {
     
     npc.draw();
 
-    // Draw angry emoji if NPC is angry
     if (npc.isAngry) {
       push(); 
       imageMode(CENTER);
@@ -764,7 +749,7 @@ function updateNPCs() {
 
 
 function spawnNewItem() {
-  if (activeItem) return; // don't spawn if there's already an active item
+  if (activeItem) return; // Don't spawn if there's already an active item
   
   activeItem = new Sprite(760, 160);
   let randomItemIndex = floor(random(0, ITEMS.length));
@@ -788,11 +773,11 @@ function updateItems() {
     for (let i = 0; i < SHELVES.length; i++) {
       let shelf = SHELVES[i];
       
-      // check if player is near this shelf
+      // Check if player is near this shelf
       if (player.x >= shelf.x && player.x <= shelf.x + shelf.width &&
           player.y >= shelf.y && player.y <= shelf.y + shelf.height) {
         
-        // check if this shelf accepts the held item
+        // Check if this shelf accepts the held item
         if (shelf.items.includes(player.holdingItem.name)) {
           placeItemOnShelf(shelf);
           break;
@@ -811,7 +796,7 @@ function placeItemOnShelf(shelf) {
   activeItem.remove();
   activeItem = null;
   
-  // spawn a new item after a delay
+  // Spawn a new item after a delay
   setTimeout(spawnNewItem, 2000);
 }
 
@@ -1021,10 +1006,8 @@ function drawStore() {
 
 
 function keepPlayerOnScreen() {
-  // Set boundaries with a small margin
   const margin = 20;
   
-  // Check and correct position if player is going off-screen
   if (player.x < margin) {
     player.x = margin;
     player.velocity.x = 0;
@@ -1043,28 +1026,25 @@ function keepPlayerOnScreen() {
 }
 
 function drawHUD() {
-  push(); // Save the current drawing state
-  
+  push(); 
+
   // Reset the transformation to draw HUD in screen coordinates
   resetMatrix();
   
-  // Calculate the position of the HUD box relative to the screen
   let hudX = (windowWidth/3) - (HUD_BOX_WIDTH/4);
   let hudY = HUD_MARGIN;
   
-  // Draw the box background with rounded corners
-  fill(0, 0, 0, 200); // Semi-transparent black
+  fill(0, 0, 0, 200); 
   stroke(255);
   strokeWeight(2);
   rectMode(CORNER);
   rect(hudX, hudY, HUD_BOX_WIDTH, HUD_BOX_HEIGHT, HUD_CORNER_RADIUS);
   
-  // Draw the text
   fill(255);
   noStroke();
   textSize(24);
   textAlign(CENTER, CENTER);
   text(hudText, hudX + HUD_BOX_WIDTH/2, hudY + HUD_BOX_HEIGHT/2);
   
-  pop(); // Restore the original drawing state
+  pop(); 
 }
