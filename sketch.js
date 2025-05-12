@@ -1,3 +1,5 @@
+let keys = {}; 
+
 let gameState;
 let player;
 let item;
@@ -8,6 +10,7 @@ let KIDS = [];
 let ITEMS = [];
 let children = []; 
 let activeItem = null;
+let walls;
 
 const MAX_CHILDREN = 3; 
 const CHILD_SPAWN_RATE = 0.01; 
@@ -213,8 +216,34 @@ function setup() {
     zoom: 1
   };
 
-  bgMusic.play();
-  bgMusic.loop();
+  window.addEventListener('keydown', function(e) {
+    keys[e.key] = true;
+  });
+  
+  window.addEventListener('keyup', function(e) {
+    keys[e.key] = false;
+  });
+
+
+  walls = new Group();
+
+ // Horizontal wall under checkout
+  let wall1 = createSprite(900/2, 1020 + 30, 900, 60);
+  wall1.immovable = true;
+  wall1.visible = false;
+  walls.add(wall1);
+
+  // Vertical wall above the door (1020–1320)
+  let wall2a = createSprite(840 + 30, (1020 + 1320)/2, 40, 1320 - 1020);
+  wall2a.immovable = true;
+  wall2a.visible = false;
+  walls.add(wall2a);
+
+  // Vertical wall below the door (1620–1800)
+  let wall2b = createSprite(840 + 30, (1620 + 1800)/2, 40, 1800 - 1620);
+  wall2b.immovable = true;
+  wall2b.visible = false;
+  walls.add(wall2b);
 }
 
 
@@ -245,6 +274,9 @@ function intro() {
   button1.position(windowWidth/3 - 50, 3*windowHeight/7 +40);
   button1.size(130, 200);
   button1.mousePressed(function () {
+    userStartAudio();
+    bgMusic.loop();
+
     playerImage = dude;
     button1.remove();
     button2.remove();
@@ -257,6 +289,9 @@ if (!button2) {
   button2.position(windowWidth/3 + (windowWidth/5), 3*windowHeight/7 + 35);
   button2.size(130, 200);
   button2.mousePressed(function () {
+    userStartAudio();
+    bgMusic.loop();
+
     playerImage = gal;
     button2.remove();
     button1.remove();
@@ -301,6 +336,7 @@ function runGame(playerImage) {
     player.collider = 'dynamic';
     player.rotationLock = true;
     player.bounciness = 0; 
+    
   }
 
   translate(-camera.x + (width/5), -camera.y + (height/5));
@@ -317,6 +353,7 @@ function runGame(playerImage) {
   drawBags();
   spawnNewItem();
 
+
   if (playerIsSlowed) {
     playerSlowdownTimer--;
     if (playerSlowdownTimer <= 0) {
@@ -324,7 +361,6 @@ function runGame(playerImage) {
     }
   }
 
-  drawOutline(player);
 
   if (playerSpeedBoosted) {
     push();
@@ -344,8 +380,41 @@ function runGame(playerImage) {
     pop();
   }
 
-  player.draw();  
+///player movement mechanics
+
+const prevX = player.position.x;
+const prevY = player.position.y;
+
+
+  let moveSpeed = playerSpeedBoosted
+    ? BOOSTED_SPEED
+    : (playerIsSlowed ? SLOWED_SPEED : SPEED);
+
+  if      (keys['w'] || keys['W']) player.position.y -= moveSpeed;
+  else if (keys['s'] || keys['S']) player.position.y += moveSpeed;
+  if      (keys['a'] || keys['A']) player.position.x -= moveSpeed;
+  else if (keys['d'] || keys['D']) player.position.x += moveSpeed;
+
+  //  Block against store walls by reverting into prev spot
+  // Horizontal wall:    x ∈ [0,900],   y ∈ [1020,1080]
+  // Vertical top wall: x ∈ [840,880], y ∈ [1020,1320]
+  // Vertical bot wall: x ∈ [840,880], y ∈ [1620,1800]
+  const x = player.position.x, y = player.position.y;
+  const inHorz = x >=   0 && x <= 900  && y >= 1020 && y <= 1080;
+  const inVertTop  = x >= 840 && x <= 880 && y >= 1020 && y <= 1320;
+  const inVertBot  = x >= 840 && x <= 880 && y >= 1620 && y <= 1800;
+  if (inHorz || inVertTop || inVertBot) {
+    player.position.x = prevX;
+    player.position.y = prevY;
+  }
+
+
+  drawOutline(player);
   keepPlayerOnScreen();
+  player.draw();
+
+  player.collide(walls);
+
 
   updateItems();
 
@@ -808,10 +877,7 @@ function updateNPCs() {
       playerSpeedBoosted = true;
       playerBoostTimer = SPEED_BOOST_DURATION;
       
-      //Small bounce effect
-      let angle = atan2(player.y - npc.y, player.x - npc.x);
-      player.velocity.x = cos(angle) * 3;
-      player.velocity.y = sin(angle) * 3;
+      
     }    
 
 //if a npc is not shoplifitng, bumping them will slow you down
@@ -822,10 +888,7 @@ function updateNPCs() {
       playerIsSlowed = true;
       playerSlowdownTimer = SLOWDOWN_DURATION;
       
-      // Small bounce effect
-      let angle = atan2(player.y - npc.y, player.x - npc.x);
-      player.velocity.x = cos(angle) * 3;
-      player.velocity.y = sin(angle) * 3;
+     
     }
     
     if (npc.isAngry) {
@@ -1042,40 +1105,7 @@ function mouseClicked() {
   print(mouseX, mouseY);
 }
 
-function keyPressed() {
-  let currentSpeed = SPEED;
-  
-  if (playerSpeedBoosted) {
-    currentSpeed = BOOSTED_SPEED;
-  } else if (playerIsSlowed) {
-    currentSpeed = SLOWED_SPEED;
-  }
-  
-  if (key === 'A' || key === 'a') {
-    player.velocity.x = -currentSpeed;
-  } else if (key === 'D' || key === 'd') {
-    player.velocity.x = currentSpeed;
-  }
-  if (key === 'W' || key === 'w') {
-    player.velocity.y = -currentSpeed;
-  } else if (key === 'S' || key === 's') {
-    player.velocity.y = currentSpeed;
-  }
-}
 
-    
-function keyReleased() {
-  if (key === 'A' || key === 'a') {
-    if (player.velocity.x < 0) player.velocity.x = 0;
-  } else if (key === 'D'|| key === 'd') {
-    if (player.velocity.x > 0) player.velocity.x = 0;
-  }
-  if (key === 'W' || key === 'w') {
-    if (player.velocity.y < 0) player.velocity.y = 0;
-  } else if (key === 'S' || key === 's') {
-    if (player.velocity.y > 0) player.velocity.y = 0;
-  }
-}
 
 function drawFloor() {
   background(0,0,0);
@@ -1321,3 +1351,4 @@ function outro() {
   fill(150, 150, 150);
   text("REFRESH PAGE TO PLAY AGAIN", width / 2, height * 3/4);
 }
+
